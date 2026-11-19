@@ -79,6 +79,7 @@ jobs:
               chmod +x "$PS2SDK/bin/bin2s" && \
               sed -i "/^EE_INCS +=/a EE_INCS += -I$PS2DEV/gsKit/include" Makefile && \
               sed -i "/^EE_LDFLAGS +=/a EE_LDFLAGS += -L$PS2DEV/gsKit/lib" Makefile && \
+              printf "\\nEE_LIBS += -lpatches\\n" >> Makefile && \\
               make clean && make'
 
       - name: Verify ELF
