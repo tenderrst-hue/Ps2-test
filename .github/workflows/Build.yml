@@ -16,22 +16,39 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: ps2dev/ps2dev:latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Extract PS2 source archive
+      - name: Install unzip
+        run: sudo apt-get update && sudo apt-get install -y unzip
+
+      - name: Extract and verify source
         run: |
           if [ -f ps2port_src.zip ]; then
             unzip -oq ps2port_src.zip -d .
           fi
           test -f ps2port/Makefile
+          test -f ps2port/src/main_ps2.c
+          test -f ps2port/src/game.c
+          test -f ps2port/src/level.c
 
-      - name: Build BALDI.ELF
-        run: make -C ps2port
+      - name: Run native gameplay tests
+        run: |
+          gcc -O2 -std=gnu99 -Wall -Wextra ps2port/src/game.c ps2port/src/host_test.c -lm -o /tmp/host_test
+          /tmp/host_test
+
+      - name: Build BALDI.ELF with PS2SDK
+        run: |
+          docker pull ps2dev/ps2dev:latest
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src/ps2port \
+            ps2dev/ps2dev:latest \
+            bash -lc 'make clean && make'
+
+      - name: Verify ELF
+        run: test -s ps2port/BALDI.ELF
 
       - name: Upload BALDI.ELF
         uses: actions/upload-artifact@v4
