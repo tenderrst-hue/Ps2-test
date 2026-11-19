@@ -50,7 +50,7 @@ jobs:
             -v "$GITHUB_WORKSPACE:/src" \
             -w /src/ps2port \
             ps2dev/ps2dev:latest \
-            bash -lc 'make clean && make'
+            sh -c 'make clean && make'
 
       - name: Verify ELF
         run: test -s ps2port/BALDI.ELF
