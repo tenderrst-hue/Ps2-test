@@ -1,0 +1,33 @@
+name: Build PS2 ELF
+
+on:
+  push:
+    paths:
+      - "ps2port/**"
+      - ".github/workflows/Build.yml"
+  pull_request:
+    paths:
+      - "ps2port/**"
+      - ".github/workflows/Build.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ps2dev/ps2dev:latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build BALDI.ELF
+        working-directory: ps2port
+        run: make
+
+      - name: Upload BALDI.ELF
+        uses: actions/upload-artifact@v4
+        with:
+          name: BALDI-PS2
+          path: ps2port/BALDI.ELF
+          if-no-files-found: error
