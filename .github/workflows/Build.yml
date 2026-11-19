@@ -3,10 +3,12 @@ name: Build PS2 ELF
 on:
   push:
     paths:
+      - "ps2port_src.zip"
       - "ps2port/**"
       - ".github/workflows/Build.yml"
   pull_request:
     paths:
+      - "ps2port_src.zip"
       - "ps2port/**"
       - ".github/workflows/Build.yml"
   workflow_dispatch:
@@ -21,9 +23,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Extract PS2 source archive
+        run: |
+          if [ -f ps2port_src.zip ]; then
+            unzip -oq ps2port_src.zip -d .
+          fi
+          test -f ps2port/Makefile
+
       - name: Build BALDI.ELF
-        working-directory: ps2port
-        run: make
+        run: make -C ps2port
 
       - name: Upload BALDI.ELF
         uses: actions/upload-artifact@v4
