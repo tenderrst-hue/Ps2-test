@@ -50,7 +50,12 @@ jobs:
             -v "$GITHUB_WORKSPACE:/src" \
             -w /src/ps2port \
             ps2dev/ps2dev:latest \
-            sh -c 'apk add --no-cache make && make clean && make'
+            sh -c 'apk add --no-cache make && \
+              echo "PS2DEV=$PS2DEV PS2SDK=$PS2SDK" && \
+              test -f "$PS2DEV/gsKit/include/gsKit.h" && \
+              sed -i "/^EE_INCS +=/a EE_INCS += -I\\$(PS2DEV)/gsKit/include" Makefile && \
+              sed -i "/^EE_LDFLAGS +=/a EE_LDFLAGS += -L\\$(PS2DEV)/gsKit/lib" Makefile && \
+              make clean && make'
 
       - name: Verify ELF
         run: test -s ps2port/BALDI.ELF
