@@ -3,11 +3,13 @@ name: Build PS2 ELF
 on:
   push:
     paths:
+      - "ps2port_src.part*"
       - "ps2port_src.zip"
       - "ps2port/**"
       - ".github/workflows/Build.yml"
   pull_request:
     paths:
+      - "ps2port_src.part*"
       - "ps2port_src.zip"
       - "ps2port/**"
       - ".github/workflows/Build.yml"
@@ -23,11 +25,14 @@ jobs:
       - name: Install unzip
         run: sudo apt-get update && sudo apt-get install -y unzip
 
-      - name: Extract and verify source
+      - name: Reassemble and verify source
         run: |
-          if [ -f ps2port_src.zip ]; then
-            unzip -oq ps2port_src.zip -d .
+          if [ -f ps2port_src.part01 ] && [ -f ps2port_src.part02 ]; then
+            cat ps2port_src.part01 ps2port_src.part02 > ps2port_src.zip
           fi
+          test -s ps2port_src.zip
+          unzip -tq ps2port_src.zip
+          unzip -oq ps2port_src.zip -d .
           test -f ps2port/Makefile
           test -f ps2port/src/main_ps2.c
           test -f ps2port/src/game.c
