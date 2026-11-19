@@ -53,14 +53,14 @@ jobs:
             in = fopen(argv[1], "rb"); if (!in) return 3;
             fseek(in, 0, SEEK_END); n = ftell(in); rewind(in);
             out = fopen(argv[2], "w"); if (!out) return 4;
-            fprintf(out, ".sdata\\n\\n.globl size_%s\\nsize_%s:\\t.word %ld\\n\\n", argv[3], argv[3], n);
-            if (argc == 5) fprintf(out, ".SECTION %s\\n\\n", argv[4]); else fprintf(out, ".data\\n\\n");
-            fprintf(out, ".balign 16\\n\\n.globl %s\\n%s:\\n", argv[3], argv[3]);
+            fprintf(out, ".sdata\n\n.globl size_%s\nsize_%s:\t.word %ld\n\n", argv[3], argv[3], n);
+            if (argc == 5) fprintf(out, ".SECTION %s\n\n", argv[4]); else fprintf(out, ".data\n\n");
+            fprintf(out, ".balign 16\n\n.globl %s\n%s:\n", argv[3], argv[3]);
             while ((c = fgetc(in)) != EOF) {
-              if ((i++ % 16) == 0) fprintf(out, "\\n\\t.byte 0x%02x", c);
+              if ((i++ % 16) == 0) fprintf(out, "\n\t.byte 0x%02x", c);
               else fprintf(out, ", 0x%02x", c);
             }
-            fprintf(out, "\\n"); fclose(in); fclose(out); return 0;
+            fprintf(out, "\n"); fclose(in); fclose(out); return 0;
           }
           EOF
 
