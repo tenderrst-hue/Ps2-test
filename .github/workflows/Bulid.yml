@@ -5,18 +5,81 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Locate project (unzip if needed)
+
+      - name: Locate project and prepare bin2s helper
         run: |
-          for Z in $(find . -name '*.zip' -not -path './.git/*'); do unzip -q -o "$Z" -d "unpacked_$(basename "$Z" .zip)"; done
+          for Z in $(find . -name '*.zip' -not -path './.git/*'); do
+            unzip -q -o "$Z" -d "unpacked_$(basename "$Z" .zip)"
+          done
           M=$(find . -name ANGRYBIRDS_PS2.txt -not -path './.git/*' | head -n1)
-          if [ -z "$M" ]; then echo "ERROR: ANGRYBIRDS_PS2.txt not found - upload angrybirds_ps2.zip to the repo root"; find . -type f -not -path './.git/*' | head -60; exit 1; fi
-          dirname "$M" > root.txt
-          echo "project root: $(cat root.txt)"; ls "$(cat root.txt)" "$(cat root.txt)/src" "$(cat root.txt)/data"
-      - name: Build ELF in ps2dev container
+          if [ -z "$M" ]; then
+            echo "ERROR: ANGRYBIRDS_PS2.txt not found"
+            find . -type f -not -path './.git/*' | head -60
+            exit 1
+          fi
+          ROOT=$(dirname "$M")
+          echo "$ROOT" > root.txt
+          echo "Project root: $ROOT"
+          test -f "$ROOT/Makefile"
+          test -f "$ROOT/src/main_ps2.c"
+          test -f "$ROOT/src/game.c"
+          test -s "$ROOT/data/audio.bin"
+          ls -lh "$ROOT" "$ROOT/src" "$ROOT/data"
+          cat > "$ROOT/.ci-bin2s.c" <<'EOF'
+          #include <stdio.h>
+          int main(int argc, char **argv) {
+            FILE *in, *out;
+            long n;
+            int c, i = 0;
+            if (argc != 4 && argc != 5) return 2;
+            in = fopen(argv[1], "rb");
+            if (!in) return 3;
+            fseek(in, 0, SEEK_END);
+            n = ftell(in);
+            rewind(in);
+            out = fopen(argv[2], "w");
+            if (!out) return 4;
+            fprintf(out, ".sdata\n\n.globl size_%s\nsize_%s:\t.word %ld\n\n", argv[3], argv[3], n);
+            if (argc == 5) fprintf(out, ".SECTION %s\n\n", argv[4]);
+            else fprintf(out, ".data\n\n");
+            fprintf(out, ".balign 16\n\n.globl %s\n%s:\n", argv[3], argv[3]);
+            while ((c = fgetc(in)) != EOF) {
+              if ((i++ % 16) == 0) fprintf(out, "\n\t.byte 0x%02x", c);
+              else fprintf(out, ", 0x%02x", c);
+            }
+            fprintf(out, "\n");
+            fclose(in);
+            fclose(out);
+            return 0;
+          }
+          EOF
+
+      - name: Build ANGRYBIRDS.ELF with PS2SDK
         run: |
           ROOT=$(cat root.txt)
-          docker run --rm -v "$PWD":/src -w "/src/$ROOT" ps2dev/ps2dev:latest sh -c 'apk add --no-cache make git build-base && make && cp ANGRYBIRDS.ELF /src/ANGRYBIRDS.ELF'
+          docker pull ps2dev/ps2dev:latest
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w "/src/$ROOT" \
+            ps2dev/ps2dev:latest \
+            sh -c 'apk add --no-cache make gcc musl-dev && \
+              echo "PS2DEV=$PS2DEV PS2SDK=$PS2SDK" && \
+              test -f "$PS2DEV/gsKit/include/gsKit.h" && \
+              mkdir -p "$PS2SDK/bin" && \
+              gcc .ci-bin2s.c -o "$PS2SDK/bin/bin2s" && \
+              chmod +x "$PS2SDK/bin/bin2s" && \
+              make clean && make'
+
+      - name: Verify ELF
+        run: |
+          ROOT=$(cat root.txt)
+          test -s "$ROOT/ANGRYBIRDS.ELF"
+          file "$ROOT/ANGRYBIRDS.ELF"
+          ls -lh "$ROOT/ANGRYBIRDS.ELF"
+          cp "$ROOT/ANGRYBIRDS.ELF" ./ANGRYBIRDS.ELF
+
       - uses: actions/upload-artifact@v4
         with:
-          name: ANGRYBIRDS.ELF
+          name: ANGRYBIRDS-PS2
           path: ANGRYBIRDS.ELF
+          if-no-files-found: error
