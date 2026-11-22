@@ -25,6 +25,8 @@ jobs:
           test -s "$ROOT/data/maps.bin"
           test -s "$ROOT/data/audio.bin"
           echo "Project root: $ROOT"
+          # Current PS2SDK has no mtapGetSlotNumber(); a connected multitap exposes four slots.
+          sed -i 's/mtapGetSlotNumber(port)/4/g' "$ROOT/src/main_ps2.c"
           du -h "$ROOT/data/"*
 
       - name: Prepare bin2s helper and build with PS2SDK
