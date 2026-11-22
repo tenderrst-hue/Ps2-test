@@ -29,6 +29,8 @@ jobs:
           sed -i 's/mtapGetSlotNumber(port)/4/g' "$ROOT/src/main_ps2.c"
           # Avoid a long blocking controller-state wait before the video system is initialized.
           sed -i 's/{ int t=0; while(t<200000.*t++; }/\/\* non-blocking startup: poll controller state in the main loop \*\//' "$ROOT/src/main_ps2.c"
+          # Diagnostic build: if GS video initialization works, the PS2 must show a solid green screen.
+          sed -i 's/maps_data=maps_bin; gfx_ps2_init(); audio_init();/maps_data=maps_bin; gfx_ps2_init(); for(;;){ gfx_begin(); gfx_rect(0,0,640,448,0x20c060ff); gfx_end(); } audio_init();/' "$ROOT/src/main_ps2.c"
           du -h "$ROOT/data/"*
 
       - name: Prepare bin2s helper and build with PS2SDK
