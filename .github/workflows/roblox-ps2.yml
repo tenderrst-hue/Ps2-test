@@ -27,6 +27,8 @@ jobs:
           echo "Project root: $ROOT"
           # Current PS2SDK has no mtapGetSlotNumber(); a connected multitap exposes four slots.
           sed -i 's/mtapGetSlotNumber(port)/4/g' "$ROOT/src/main_ps2.c"
+          # Avoid a long blocking controller-state wait before the video system is initialized.
+          sed -i 's/{ int t=0; while(t<200000.*t++; }/\/\* non-blocking startup: poll controller state in the main loop \*\//' "$ROOT/src/main_ps2.c"
           du -h "$ROOT/data/"*
 
       - name: Prepare bin2s helper and build with PS2SDK
