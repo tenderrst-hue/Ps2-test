@@ -1,0 +1,83 @@
+name: Build Roblox PS2 ELF
+on:
+  push:
+    paths:
+      - 'roblox_ps2.zip'
+      - '.github/workflows/roblox-ps2.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack Roblox PS2 project
+        run: |
+          test -s roblox_ps2.zip
+          mkdir -p unpacked_roblox
+          unzip -q -o roblox_ps2.zip -d unpacked_roblox
+          MARKER=$(find unpacked_roblox -name ROBLOX_PS2.txt -type f | head -n1)
+          test -n "$MARKER"
+          ROOT=$(dirname "$MARKER")
+          echo "$ROOT" > root.txt
+          test -f "$ROOT/Makefile"
+          test -f "$ROOT/src/main_ps2.c"
+          test -s "$ROOT/data/maps.bin"
+          test -s "$ROOT/data/audio.bin"
+          echo "Project root: $ROOT"
+          du -h "$ROOT/data/"*
+
+      - name: Prepare bin2s helper and build with PS2SDK
+        run: |
+          ROOT=$(cat root.txt)
+          cat > "$ROOT/.ci-bin2s.c" <<'EOF'
+          #include <stdio.h>
+          int main(int argc, char **argv) {
+            FILE *in, *out;
+            long n;
+            int c, i = 0;
+            if (argc != 4 && argc != 5) return 2;
+            in = fopen(argv[1], "rb");
+            if (!in) return 3;
+            fseek(in, 0, SEEK_END);
+            n = ftell(in);
+            rewind(in);
+            out = fopen(argv[2], "w");
+            if (!out) return 4;
+            fprintf(out, ".sdata\n\n.globl size_%s\nsize_%s:\\t.word %ld\n\n", argv[3], argv[3], n);
+            if (argc == 5) fprintf(out, ".SECTION %s\n\n", argv[4]);
+            else fprintf(out, ".data\n\n");
+            fprintf(out, ".balign 16\n\n.globl %s\n%s:\n", argv[3], argv[3]);
+            while ((c = fgetc(in)) != EOF) {
+              if ((i++ % 16) == 0) fprintf(out, "\n\\t.byte 0x%02x", c);
+              else fprintf(out, ", 0x%02x", c);
+            }
+            fprintf(out, "\n");
+            fclose(in);
+            fclose(out);
+            return 0;
+          }
+          EOF
+          docker pull ps2dev/ps2dev:latest
+          docker run --rm -v "$GITHUB_WORKSPACE:/src" -w "/src/$ROOT" ps2dev/ps2dev:latest sh -c '
+            apk add --no-cache make gcc musl-dev &&
+            mkdir -p "$PS2SDK/bin" &&
+            gcc .ci-bin2s.c -o "$PS2SDK/bin/bin2s" &&
+            chmod +x "$PS2SDK/bin/bin2s" &&
+            make clean &&
+            make
+          '
+
+      - name: Verify and publish ELF
+        run: |
+          ROOT=$(cat root.txt)
+          test -s "$ROOT/ROBLOX.ELF"
+          file "$ROOT/ROBLOX.ELF"
+          cp "$ROOT/ROBLOX.ELF" ./ROBLOX.ELF
+          ls -lh ROBLOX.ELF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ROBLOX-PS2
+          path: ROBLOX.ELF
+          if-no-files-found: error
