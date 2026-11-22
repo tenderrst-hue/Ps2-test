@@ -1,4 +1,4 @@
-name: Build Roblox PS2 ELF
+name: Build Roblox PS2 diagnostic ELFs
 on:
   push:
     paths:
@@ -24,15 +24,12 @@ jobs:
           test -f "$ROOT/src/main_ps2.c"
           test -s "$ROOT/data/maps.bin"
           test -s "$ROOT/data/audio.bin"
-          echo "Project root: $ROOT"
-          # Current PS2SDK has no mtapGetSlotNumber(); a connected multitap exposes four slots.
+          # Compatibility with the current PS2SDK image.
           sed -i 's/mtapGetSlotNumber(port)/4/g' "$ROOT/src/main_ps2.c"
-          # Avoid a long blocking controller-state wait before the video system is initialized.
-          sed -i 's/{ int t=0; while(t<200000.*t++; }/\/\* non-blocking startup: poll controller state in the main loop \*\//' "$ROOT/src/main_ps2.c"
-          # Diagnostic build: if GS video initialization works, the PS2 must show a solid green screen.
-          du -h "$ROOT/data/"*
+          sed -i 's/{ int t=0; while(t<300000.*t++; }/\/\* do not block startup waiting for a controller \*\//' "$ROOT/src/main_ps2.c"
+          echo "Project root: $ROOT"
 
-      - name: Prepare bin2s helper and build with PS2SDK
+      - name: Prepare bin2s helper and build four ELFs
         run: |
           ROOT=$(cat root.txt)
           cat > "$ROOT/.ci-bin2s.c" <<'EOF'
@@ -70,19 +67,30 @@ jobs:
             gcc .ci-bin2s.c -o "$PS2SDK/bin/bin2s" &&
             chmod +x "$PS2SDK/bin/bin2s" &&
             make clean &&
-            make
+            make STAGE=1 &&
+            cp ROBLOX_TEST1.ELF /src/ &&
+            make clean &&
+            make STAGE=2 &&
+            cp ROBLOX_TEST2.ELF /src/ &&
+            make clean &&
+            make SAFE=1 &&
+            cp ROBLOX_SAFE.ELF /src/ &&
+            make clean &&
+            make &&
+            cp ROBLOX.ELF /src/
           '
 
-      - name: Verify and publish ELF
+      - name: Verify and package ELFs
         run: |
-          ROOT=$(cat root.txt)
-          test -s "$ROOT/ROBLOX.ELF"
-          file "$ROOT/ROBLOX.ELF"
-          cp "$ROOT/ROBLOX.ELF" ./ROBLOX.ELF
-          ls -lh ROBLOX.ELF
+          for f in ROBLOX_TEST1.ELF ROBLOX_TEST2.ELF ROBLOX_SAFE.ELF ROBLOX.ELF; do
+            test -s "$f"
+            file "$f"
+            readelf -h "$f" | grep -E 'Class:|Machine:'
+          done
+          zip -j ROBLOX-PS2-DIAGNOSTICS.zip ROBLOX_TEST1.ELF ROBLOX_TEST2.ELF ROBLOX_SAFE.ELF ROBLOX.ELF
 
       - uses: actions/upload-artifact@v4
         with:
-          name: ROBLOX-PS2
-          path: ROBLOX.ELF
+          name: ROBLOX-PS2-DIAGNOSTICS
+          path: ROBLOX-PS2-DIAGNOSTICS.zip
           if-no-files-found: error
